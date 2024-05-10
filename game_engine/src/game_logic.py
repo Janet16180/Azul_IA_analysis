@@ -3,6 +3,7 @@ import numpy as np
 import random
 from typing import List
 import warnings
+from collections import deque
 
 from icecream import ic
 
@@ -16,32 +17,224 @@ class Board():
         # Zero means that the space is empty
         # from 1 to 6 are the types of tiles
         self.wall = np.zeros((5,5), dtype=int)
-        self.pattern_line = [np.zeros(i+1, dtype=int) for i in range(5)]
+        self.pattern_lines = [np.zeros(i+1, dtype=int) for i in range(5)]
         self.floor_line = np.zeros(7, dtype=int)
+        
+        self.wall_default_pattern = self.__get_wall_default_patter()
+
+        self.floor_line_minus_points = np.array([-1, -1, -2, -2, -2, -3, -3], dtype=int)
+
+        self.init_player = False
+
+    def __get_wall_default_patter(self) -> np.array:
+        """ Creates the default pattern that has the player's board
+
+        This creates a 5x5 array where each number is the type of 
+        tile that should go in each box
+
+        Returns
+        -------
+        np.array
+            Array of integers with dimension 5x5 with the default pattern
+        """
+
+        circular_list = deque([1, 2, 3, 4, 5])
+        wall_default_pattern = []
+
+        for _ in range(5):
+            row = list(circular_list)
+            circular_list.rotate(1)
+            wall_default_pattern.append(row)
+
+        wall_default_pattern = np.array(wall_default_pattern)
+        return wall_default_pattern
+
+
+    def __update_score(self, new_tiles_index: tuple[int, int]) -> None:
+        """ Updates the player's score during each tiling phase
+
+        Parameters
+        ----------
+        new_tiles_index : tuple[int, int]
+            Index of the new tile that was placed on the wall
+
+        Raises
+        ------
+        ValueError
+            Invalid status due to an error in the code logic
+            this should not occur if the score logic is correct
+        """
+
+        new_tile_i, new_tile_j = new_tiles_index
+        row = self.wall[new_tile_i]
+        column = self.wall[:, new_tile_j]
+
+        # Add points if fill row
+        if np.count_nonzero(row) == 5:
+            self.game_logic.game_end = True
+            self.score += 2
+
+        # Add points if fill column
+        if np.count_nonzero(column) == 5:
+            self.score += 7
+
+        unique_values, counts = np.unique(self.wall, return_counts=True)
+        tile_type = self.wall_default_pattern[new_tile_i, new_tile_j]
+
+        unique_values_tile_index = np.where(unique_values == tile_type)[0][0]
+        new_tile_total_count = counts[unique_values_tile_index]
+        
+        # Add points if fill all colors
+        if new_tile_total_count == 5:
+            self.score += 10
+
+        
+        # Count row new points
+        count_from_row = 0
+        for i in range(new_tile_j, -1, -1):
+            row_tile_type = row[i]
+            if row_tile_type ==  0:
+                break
+
+            count_from_row += 1
+
+        for i in range(new_tile_j+1, 5):
+            row_tile_type = row[i]
+            if row_tile_type ==  0:
+                break
+
+            count_from_row += 1
+
+
+        # Count column new points
+        count_from_column = 0
+        for i in range(new_tile_i, -1, -1):
+            column_tile_type = column[i]
+            if column_tile_type ==  0:
+                break
+
+            count_from_column += 1
+
+        for i in range(new_tile_i+1, 5):
+            column_tile_type = column[i]
+            if column_tile_type ==  0:
+                break
+
+            count_from_column += 1
+
+
+        # This logic is to avoid double counting the new tile
+        if count_from_row == 1 and count_from_column == 1:
+            self.score += 1
+        elif count_from_row == 1 and count_from_column > 1:
+            self.score += count_from_column
+        elif count_from_row > 1 and count_from_column == 1:
+            self.score += count_from_row
+        # We only count the same tile twice if it connects with other 
+        # tiles horizontally and vertically.
+        elif count_from_row > 1 and count_from_column > 1:
+            self.score += count_from_column + count_from_row
+        else:
+            # Theoretically this state should not be possible
+            # but I add a raise ValueError just in case
+            raise ValueError("Invalid count statue")
+
+        
 
     def wall_tiling(self):
-        pass
-        
-    def pick_tiles(self, row: int, tiles: List[int]):
+        """ When a round ends, this is the phase where the filled rows are
+        placed on the wall and the points are counted
 
-        if not self.validate_pick_tiles(row, tiles):
+        1.- This function performs several tasks, it moves the tiles from
+        the pattern lines (self.pattern_lines) to the wall (self.wall)
+
+        2.- Count the points
+
+        3.- Move tiles from the floor line (self.floor_line) and remove 
+        excess tiles at the completion of a row (self.floor_line[row]) to the discard pile
+        """
+
+        discard_tiles = []
+        for row in range(5):
+            actual_row = self.pattern_lines[row]
+            if np.count_nonzero(actual_row) != len(actual_row):
+                continue
+
+            tile_type = actual_row[0]
+            row_default_pattern = self.wall_default_pattern[row]
+            wall_tile_index = np.where(row_default_pattern == tile_type)[0][0]
+
+            self.wall[row, wall_tile_index] = tile_type
+            self.__update_score((row, wall_tile_index))
+            
+            row_discard_tiles = actual_row.copy()
+            row_discard_tiles[0] = 0
+            discard_tiles += list(row_discard_tiles[1:])
+            actual_row[:] = 0 
+        
+        
+        floor_tiles_discart = self.floor_line[:np.count_nonzero(self.floor_line)]
+        floor_tiles_discart = list(floor_tiles_discart)
+
+        # subtract the floor line tiles to the final score
+        self.score += self.floor_line_minus_points[:len(floor_tiles_discart)].sum()
+
+        # If the final score is less than zero, the result is set to zero
+        if self.score < 0:
+            self.score = 0
+
+        # If the first tile is the initial player's tile set self.init_player to True otherwise False
+        if floor_tiles_discart[0] == -1:
+            # Remove the first tile form the floor_tiles_discart to avoid 
+            # put that tile in the discard pile (self.game_logic.discarted_tiles)
+            floor_tiles_discart.pop(0)
+            self.init_player = True
+        else:
+            self.init_player = False
+
+
+        self.game_logic.discarted_tiles += floor_tiles_discart
+        self.floor_line[:] = 0
+
+        self.game_logic.discarted_tiles += discard_tiles
+            
+        
+    def laying_tiles(self, row: int, tiles: List[int]) -> None:
+        """ Place the tiles taken from the factory to one of the rows of the pattern lines (self.pattern_lines)
+
+        Parameters
+        ----------
+        row : int
+            Row to which you want to place the new tiles, there are 5 rows
+            from o to 4
+        tiles : List[int]
+            List of tiles to be laid, all tiles must be of the same type
+
+        Raises
+        ------
+        RuntimeError
+            An error is thrown when trying to make an invalid move
+            must first check that the movement is valid with validate_laying_tiles
+        """
+
+        if not self.validate_laying_tiles(row, tiles):
             raise RuntimeError("It is not possible to make such a move")
         
         floor_leftover_tiles = []
 
-        actual_row = self.pattern_line[row]
+        actual_row = self.pattern_lines[row]
 
         non_zero_index = np.count_nonzero(actual_row)
         free_spaces = len(actual_row) - non_zero_index
 
         # All tiles can be laid in the row 
         if len(tiles) <= free_spaces:
-            self.pattern_line[row][non_zero_index: len(tiles)+non_zero_index] = tiles
+            actual_row[non_zero_index: len(tiles)+non_zero_index] = tiles
         else:
             # Fill in the row and place the remaining tiles on the floor line (self.floor_line)
             leftover_tiles = tiles[free_spaces:]
             useful_tiles = tiles[:free_spaces]
-            self.pattern_line[row][non_zero_index:] = useful_tiles
+            actual_row[non_zero_index:] = useful_tiles
 
 
             floor_index = np.count_nonzero(self.floor_line)
@@ -60,7 +253,23 @@ class Board():
                 self.game_logic.discarted_tiles += floor_leftover_tiles
 
 
-    def validate_pick_tiles(self, row: int, tiles: List[int]) -> bool:
+    def validate_laying_tiles(self, row: int, tiles: List[int]) -> bool:
+        """ Validates if the movement to be made to place 
+        the tiles in the pattern lines row (self.pattern_lines[row]) is valid
+
+        Parameters
+        ----------
+        row : int
+            Row to which you want to place the new tiles, there are 5 rows
+            from o to 4
+        tiles : List[int]
+            List of tiles to be laid, all tiles must be of the same type
+
+        Returns
+        -------
+        bool
+            True if the movement is valid otherwise False
+        """
         
         tiles_set = set(tiles)
 
@@ -69,9 +278,10 @@ class Board():
             warnings.warn(f"All tiles to be taken must be identical {tiles}")
             return False
         
+        
         tile_type = tiles[0]
         
-        actual_row = self.pattern_line[row]
+        actual_row = self.pattern_lines[row]
         
         if np.count_nonzero(actual_row) != 0 and tile_type not in actual_row:
             warnings.warn(f"These type of tiles '{tile_type}' cannot be placed, there is already another type of tile {actual_row}")
@@ -151,6 +361,8 @@ class Game_logic():
         self.factories = [[] for _ in range(self.factories_num)]
         self.center_tiles = []
         self.players_boards = [Board(self) for _ in range(number_players)]
+
+        self.game_end = False
     
         
     def get_tiles_from_factory(self, factory_num: int, tile: int) -> List[int]:
@@ -274,41 +486,3 @@ class Game_logic():
                 self.bag_tiles = self.bag_tiles[4:]
 
                 self.factories[factory_num] = tiles
-
-game = Game_logic(4)
-game.fill_factories()
-
-tiles = game.get_tiles_from_factory(0, 3)
-
-tiles = [3,3,3]
-ic(tiles)
-
-board_player = game.players_boards[0]
-board_player.pick_tiles(3, tiles)
-
-rows = board_player.pattern_line
-ic(rows)
-
-board_player.pick_tiles(3, tiles)
-rows = board_player.pattern_line
-ic(rows)
-
-
-board_player.pick_tiles(3, tiles)
-rows = board_player.pattern_line
-ic(rows)
-
-board_player.pick_tiles(3, tiles)
-rows = board_player.pattern_line
-ic(rows)
-
-board_player.pick_tiles(3, tiles)
-rows = board_player.pattern_line
-ic(rows)
-
-discard = game.discarted_tiles
-ic(discard)
-
-
-player_board = board_player.floor_line
-ic(player_board)
