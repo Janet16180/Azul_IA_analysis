@@ -18,10 +18,13 @@ class Board():
         self.wall = np.zeros((5,5), dtype=int)
         self.pattern_line = [np.zeros(i+1, dtype=int) for i in range(5)]
         self.floor_line = np.zeros(7, dtype=int)
-        
-    def wall_tiling(self, row: int, tiles: List[int]):
 
-        if not self.validate_wall_tiling(row, tiles):
+    def wall_tiling(self):
+        pass
+        
+    def pick_tiles(self, row: int, tiles: List[int]):
+
+        if not self.validate_pick_tiles(row, tiles):
             raise RuntimeError("It is not possible to make such a move")
         
         floor_leftover_tiles = []
@@ -57,7 +60,7 @@ class Board():
                 self.game_logic.discarted_tiles += floor_leftover_tiles
 
 
-    def validate_wall_tiling(self, row: int, tiles: List[int]) -> bool:
+    def validate_pick_tiles(self, row: int, tiles: List[int]) -> bool:
         
         tiles_set = set(tiles)
 
@@ -281,25 +284,25 @@ tiles = [3,3,3]
 ic(tiles)
 
 board_player = game.players_boards[0]
-board_player.wall_tiling(3, tiles)
+board_player.pick_tiles(3, tiles)
 
 rows = board_player.pattern_line
 ic(rows)
 
-board_player.wall_tiling(3, tiles)
+board_player.pick_tiles(3, tiles)
 rows = board_player.pattern_line
 ic(rows)
 
 
-board_player.wall_tiling(3, tiles)
+board_player.pick_tiles(3, tiles)
 rows = board_player.pattern_line
 ic(rows)
 
-board_player.wall_tiling(3, tiles)
+board_player.pick_tiles(3, tiles)
 rows = board_player.pattern_line
 ic(rows)
 
-board_player.wall_tiling(3, tiles)
+board_player.pick_tiles(3, tiles)
 rows = board_player.pattern_line
 ic(rows)
 
