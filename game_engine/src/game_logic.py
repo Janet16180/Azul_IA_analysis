@@ -1,4 +1,5 @@
 from __future__ import annotations
+from abc import ABC, abstractmethod
 import numpy as np
 import random
 from typing import List
@@ -6,7 +7,7 @@ import warnings
 from collections import deque
 from enum import Enum, auto
 from itertools import cycle
-from .model_abstract_class import Player_model
+# from .model_abstract_class import Player_model
 from icecream import ic
 
 
@@ -374,8 +375,8 @@ class Game_logic():
         ----------
         factory_num : int
             Number of the factory from which the tile will be taken
-            from 1 to the number of factories
-            0 to take tiles from the center.
+            from 0 to the number of factories
+            -1 to take tiles from the center.
         tile : int
             Tile to be removed, from 1 to 5
 
@@ -427,6 +428,7 @@ class Game_logic():
         
         if tile < 1 or tile > 5:
             warnings.warn(f"Invalid type of tile {tile}")
+            return False
 
         if factory_num == -1:
             factory_tiles = self.center_tiles
@@ -507,21 +509,59 @@ class Game_viewer():
     def get_number_of_players(self):
         return self.game_logic.number_players
     
+    def get_player_wall(self, player_index: int):
+        player = self.__players_boards[player_index]
+        wall = player.wall
+        return wall.copy()
+    
+    def get_player_floor_lines(self, player_index: int):
+        player = self.__players_boards[player_index]
+        floor_line =  player.floor_line
+        return floor_line.copy()
+    
+    def get_player_pattern_lines(self, player_index: int):
+        player = self.__players_boards[player_index]
+        player_pattern_lines = player.pattern_lines
+        return player_pattern_lines.copy()
+    
+    def validate_player_move(self, player_index: int, factory_index: int, tile_type: int, row_index: int) -> bool:
+        player = self.__players_boards[player_index]
+        
+        validate_get_tiles = self.game_logic.validate_get_tiles_from_factory(factory_index, tile_type)
+        if not validate_get_tiles:
+            return False
+        
+        if factory_index == -1:
+            factory_tiles = self.game_logic.center_tiles
+        else:
+            factory_tiles = self.game_logic.factories[factory_index]
+
+        occurances_num = np.count_nonzero(np.array(factory_tiles) == tile_type)
+        tiles = [tile_type]*occurances_num
+
+        validate_laying_tiles = player.validate_laying_tiles(row_index, tiles)
+        
+        if not validate_laying_tiles:
+            return False
+        
+        return True
+        
+        
     def get_players_wall(self):
         walls = []
         for player in self.__players_boards:
             wall = player.wall
             walls.append(wall)
 
-        return walls
+        return walls.copy()
     
     def get_players_floor_lines(self):
         floor_lines = []
         for player in self.__players_boards:
-            fllor_line = player.floor_line
-            floor_lines.append(fllor_line)
+            floor_line = player.floor_line
+            floor_lines.append(floor_line)
 
-        return floor_lines
+        return floor_lines.copy()
     
     def get_players_pattern_lines(self):
         pattern_lines = []
@@ -529,134 +569,18 @@ class Game_viewer():
             player_pattern_lines = player.pattern_lines
             pattern_lines.append(player_pattern_lines)
         
-        return pattern_lines
-
-class Game_states(Enum):
-    INIT_GAME = auto()
-    FILL_FACTORY = auto()
-    PLAYER_MOVE = auto()
-    ROUND_END = auto()
-    WALL_TILING = auto()
-    GAME_END = auto()
-
-class Player_cycle:
-    def __init__(self, items):
-        self.items = list(items)
-        self.cycle = cycle(self.items)
-        self.current = next(self.cycle)  
-
-    def next(self):
-        self.current = next(self.cycle)
-        return self.current
-
-    def set(self, value):
-        if value in self.items:
-            while self.current != value:
-                self.current = next(self.cycle)
-        else:
-            raise ValueError(f"{value} is not in the cycle items.")
-        
-class Game_state_machine():
-    def __init__(self, game_logic: Game_logic, players_models: List[Player_model]):
-        self.state = Game_states.INIT_GAME
-
-        self.game_logic = game_logic
-        self.game_logic.players_boards[0].init_player = True
-
-        self.player_cycle = Player_cycle(range(self.game_logic.number_players))
-        self.current_player_index = 0
-
-        if len(self.game_logic.players_boards) == len(players_models):
-            raise ValueError(
-                f"There must be a model for each player, number of players {len(self.game_logic.players_boards)}\n"
-                f"number of models {len(players_models)}"
-            )
-        
-        self.players_models = players_models
-
-        self.state_methods_dict = {
-            Game_states.INIT_GAME: self.init_game,
-            Game_states.FILL_FACTORY: self.fill_factory,
-            Game_states.PLAYER_MOVE: self.player_move,
-            Game_states.WALL_TILING: self.wall_tiling,
-            Game_states.ROUND_END: self.round_end,
-            Game_states.GAME_END: self.game_end,
-        }
-        self.state_methods_dict[self.state]() # Execute first state
-
-    def init_game(self):
-        pass
-
-    def fill_factory(self):
-        self.game_logic.fill_factories()
-
-    def player_move(self):
-        player_model = self.players_models[self.current_player_index]
-
-        player_move_get_tiles = player_model.get_move_tiles_from_factory()
-        player_move_laying_tiles = player_model.get_move_laying_tiles()
-
-        player_board = self.game_logic.players_boards[self.current_player_index]
-        
-        tiles = self.game_logic.get_tiles_from_factory(*player_move_get_tiles)
-
-        player_board.laying_tiles(player_move_laying_tiles, tiles)
-
-    def round_end(self):
-        pass
-
-    def wall_tiling(self):
-        for player in self.game_logic.players_boards:
-            player.wall_tiling()
-
-    def game_end(self):
-        pass
-
-    def next(self):
-        round_end = all(not sublist for sublist in self.game_logic.factories) and len(self.game_logic.center_tiles) == 0
-
-        next_state = None
-        if self.state == Game_states.INIT_GAME:
-            next_state = Game_states.FILL_FACTORY
-        elif self.state == Game_states.FILL_FACTORY:
-            next_state = Game_states.PLAYER_MOVE
-        elif self.state == Game_states.PLAYER_MOVE and not round_end:
-            self.__next_player()
-            next_state = Game_states.PLAYER_MOVE
-        elif self.state == Game_states.PLAYER_MOVE and round_end:
-            next_state = Game_states.ROUND_END
-        elif self.state == Game_states.ROUND_END: 
-            next_state = Game_states.WALL_TILING
-        elif self.state == Game_states.WALL_TILING and not self.game_logic.game_end:
-            self.__set_player_first_move()
-            next_state = Game_states.FILL_FACTORY
-        elif self.state == Game_states.WALL_TILING and self.game_logic.game_end:
-            next_state = Game_states.GAME_END
-        elif self.state == Game_states.GAME_END:
-            next_state = Game_states.GAME_END
-        
-        exec_method = self.state_methods_dict[self.state]
-        exec_method()
-
-        self.state = next_state
-        return self.state
+        return pattern_lines.copy()
     
-    def __next_player(self):
-        self.current_player_index = self.player_cycle.next()
 
-    def __set_player_first_move(self):
-        start_player_index = 0
-        for i, player in enumerate(self.game_logic.players_boards):
-            if player.init_player:
-                start_player_index = i
-                break
+class Player_model(ABC):
+    def __init__(self, Game_viewer: Game_viewer, player_index: int):
+        self.game_viewer = Game_viewer
+        self.player_index = player_index
 
-        self.current_player_index = start_player_index
-        self.player_cycle.set(start_player_index)
+    @abstractmethod
+    def player_move(self) -> Tuple[int, int, int]:
+        pass
 
-
-    def print_state(self):
-        if self.state == Game_states.PLAYER_MOVE:
-            print(f"{self.state}_{self.current_player_index}")
-        else:
-            print(f"{self.state}")
+    def validate_player_move(self, factory_index: int, tile_type: int, row_index: int):
+        result = self.game_viewer.validate_player_move(self.player_index, factory_index, tile_type, row_index)
+        return result
