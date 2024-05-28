@@ -208,7 +208,7 @@ class Board():
         ----------
         row : int
             Row to which you want to place the new tiles, there are 5 rows
-            from o to 4
+            from 0 to 4. -1 to break all tiles
         tiles : List[int]
             List of tiles to be laid, all tiles must be of the same type
 
@@ -221,6 +221,24 @@ class Board():
 
         if not self.validate_laying_tiles(row, tiles):
             raise RuntimeError("It is not possible to make such a move")
+        
+        # Breaks tiles right away, straight to the floor
+        if row == -1:
+            floor_index = np.count_nonzero(self.floor_line)
+            floor_free_spaces = 7 - floor_index
+
+            if len(tiles) <= floor_free_spaces:
+                self.floor_line[floor_index: len(tiles)+floor_index] = tiles
+            else:
+                floor_leftover_tiles = tiles[floor_free_spaces:]
+                floor_useful_tiles = tiles[:floor_free_spaces]
+                self.floor_line[floor_index:] = floor_useful_tiles
+
+                # We place the remaining tiles in the discarted_tiles
+                self.game_logic.discarted_tiles += floor_leftover_tiles
+
+            return
+
         
         floor_leftover_tiles = []
 
@@ -262,7 +280,7 @@ class Board():
         ----------
         row : int
             Row to which you want to place the new tiles, there are 5 rows
-            from o to 4
+            from 0 to 4. -1 to break all tiles
         tiles : List[int]
             List of tiles to be laid, all tiles must be of the same type
 
@@ -271,6 +289,8 @@ class Board():
         bool
             True if the movement is valid otherwise False
         """
+        if row == -1:
+            return True
         
         tiles_set = set(tiles)
 
@@ -294,6 +314,9 @@ class Board():
             return False
 
         return True
+
+
+
 
         
 class Game_logic():
@@ -335,7 +358,6 @@ class Game_logic():
         ValueError
             The number of players should be between 2 and 4
         """
-        random.seed(1)
 
         if number_players < 1 or number_players > 4:
             raise ValueError("The number of players should be between 2 and 4")
@@ -399,6 +421,10 @@ class Game_logic():
             if val_list == tile:           
                 factory_tiles.remove(tile)
                 delete_items.append(tile)
+
+        if factory_num != -1:
+            self.center_tiles += factory_tiles
+            factory_tiles.clear()
 
         return delete_items
 
@@ -545,6 +571,9 @@ class Game_viewer():
             return False
         
         return True
+    
+
+    
         
         
     def get_players_wall(self):

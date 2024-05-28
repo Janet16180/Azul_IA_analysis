@@ -93,8 +93,7 @@ class Game_state_machine():
     def next(self):
         round_end = all(not sublist for sublist in self.game_logic.factories) and len(self.game_logic.center_tiles) == 0
         result = list((not sublist for sublist in self.game_logic.factories))
-        ic(self.game_logic.factories)
-        ic(round_end)
+  
         next_state = None
         if self.state == Game_states.INIT_GAME:
             next_state = Game_states.FILL_FACTORY
@@ -116,6 +115,9 @@ class Game_state_machine():
             next_state = Game_states.GAME_END
         elif self.state == Game_states.GAME_END:
             next_state = Game_states.GAME_END
+
+        ic(self.game_logic.factories)
+        ic(self.game_logic.center_tiles)
         
         
         exec_method = self.state_methods_dict[next_state]
@@ -156,6 +158,9 @@ def run_simulation():
 
     game_state = Game_state_machine(game_logic, players)
 
-    for _ in range(50):
+    for _ in range(20000):
         game_state.print_state()
         game_state.next()
+        if game_state.state == Game_states.GAME_END:
+            print("GAME END")
+            break

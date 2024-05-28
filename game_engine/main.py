@@ -7,14 +7,14 @@ from src.run_simulation import run_simulation
 
 
 def main():
-    run_simulation()
-    # pygame.init()
+    # run_simulation()
+    pygame.init()
 
-    # screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
-    # pygame.display.set_caption("Azul IA simulation")
+    screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
+    pygame.display.set_caption("Azul IA simulation")
     
-    # game = Game_GUI(screen)
-    # game.run()
+    game = Game_GUI(screen)
+    game.run()
 
 if __name__ == '__main__':
     main()
