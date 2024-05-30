@@ -358,6 +358,7 @@ class Game_logic():
         ValueError
             The number of players should be between 2 and 4
         """
+        random.seed(1)
 
         if number_players < 1 or number_players > 4:
             raise ValueError("The number of players should be between 2 and 4")

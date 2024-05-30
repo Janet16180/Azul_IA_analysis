@@ -16,9 +16,10 @@ class Game_GUI():
         # simulation logic
         game_logic = Game_logic(number_players=NUMBER_PLAYERS)
         self.game_viewer = Game_viewer(game_logic)
-        dummy_player_1 = Dummy_player(self.game_viewer, 0)
-        dummy_player_2 = Dummy_player(self.game_viewer, 1)
-        players = [dummy_player_1, dummy_player_2]
+
+        players = []
+        for i in range(NUMBER_PLAYERS):
+            players.append(Dummy_player(self.game_viewer, i))
         self.game_state = Game_state_machine(game_logic, players)
         
 
@@ -28,29 +29,41 @@ class Game_GUI():
         self.factories_positions = []
 
         self.factories_center_position = (0,0)
+        self.board_size = None
         self.__init_screen_setup()
 
         self.tiles_colors_dict = {
             1: (87,161,196),
-            2: (3,3,2),
+            2: (238,194,114),
             3: (235,65,74),
-            4: (99,209,223),
-            5: (238,194,114),
+            4:  (3,3,2),
+            5: (99,209,223),
         }
+
+        self.tile_size = 40
+        
         
 
         self.draw_tiles()
+
+    def draw_player_boards(self):
+        board_image_path = Path(ROOT, "assets", "azul-board-500px.jpg")
+        board_image = pygame.image.load(board_image_path)
+        botton_position = SCREEN_HEIGHT - board_image.get_height()
+
+        # Draw players boards
+        for i in range(self.game_viewer.get_number_of_players()):
+            self.screen.blit(board_image, (board_image.get_width()*i, botton_position))
 
     def __init_screen_setup(self):
         board_image_path = Path(ROOT, "assets", "azul-board-500px.jpg")
         board_image = pygame.image.load(board_image_path)
         botton_position = SCREEN_HEIGHT - board_image.get_height()
+        self.board_size = (board_image.get_width(), board_image.get_height())
 
         self.screen.fill((255, 255, 255)) 
 
-        # Draw players boards
-        for i in range(self.game_viewer.get_number_of_players()):
-            self.screen.blit(board_image, (board_image.get_width()*i, botton_position))
+        self.draw_player_boards()
 
         # Draw factories circles
         circle_color = (238,229,222)
@@ -106,7 +119,6 @@ class Game_GUI():
     def draw_tiles(self):
 
         circle_color = (238,229,222)
-        tile_size = 40
         separation = 5
 
         factories = self.game_viewer.get_factories()
@@ -117,26 +129,26 @@ class Game_GUI():
             tile_1_position = (
                 factory_position[0] + separation,
                 factory_position[1] + separation,
-                tile_size,
-                tile_size
+                self.tile_size,
+                self.tile_size
             )
             tile_2_position  = (
-                factory_position[0] - tile_size - separation,
-                factory_position[1] - tile_size - separation,
-                tile_size,
-                tile_size
+                factory_position[0] - self.tile_size - separation,
+                factory_position[1] - self.tile_size - separation,
+                self.tile_size,
+                self.tile_size
             )
             tile_3_position  = (
-                factory_position[0] - tile_size - separation,
+                factory_position[0] - self.tile_size - separation,
                 factory_position[1] + separation,
-                tile_size,
-                tile_size
+                self.tile_size,
+                self.tile_size
             )
             tile_4_position  = (
                 factory_position[0] + separation,
-                factory_position[1] - tile_size - separation,
-                tile_size,
-                tile_size
+                factory_position[1] - self.tile_size - separation,
+                self.tile_size,
+                self.tile_size
             )
             tiles_positions = [
                 tile_1_position,
@@ -183,10 +195,10 @@ class Game_GUI():
                 
         for i, relative_position in enumerate(relative_positions):
             tile_position = (
-                cx + relative_position[0]*(tile_size+separation),
-                cy + relative_position[1]*(tile_size+separation),
-                tile_size, 
-                tile_size
+                cx + relative_position[0]*(self.tile_size+separation),
+                cy + relative_position[1]*(self.tile_size+separation),
+                self.tile_size, 
+                self.tile_size
             )
 
             if len(center_tiles) > i:
@@ -196,17 +208,71 @@ class Game_GUI():
                 tile_color = (255,255,255)
             pygame.draw.rect(self.screen, tile_color, tile_position)
 
+    def draw_players_tiles(self):
 
+        self.draw_player_boards()
+        tile_separation = 4
+        for player_num in range(NUMBER_PLAYERS):
+            wall_tiles = self.game_viewer.get_player_wall(player_num)
+            for i in range(len(wall_tiles)):
+                for j in range(len(wall_tiles)):
+                    x = 262 + (self.board_size[0])*player_num + (self.tile_size+tile_separation)*j
+                    y = 14 + (SCREEN_HEIGHT - self.board_size[1]) + (self.tile_size+tile_separation)*i
+                    tile_position = (
+                        x,
+                        y,
+                        self.tile_size,
+                        self.tile_size
 
-       
+                    )
+                    tile_type = wall_tiles[i, j]
+                    if tile_type != 0:
+                        
+                        tile_color = self.tiles_colors_dict[tile_type]
+                        pygame.draw.rect(self.screen, tile_color, tile_position)
+        
+
+        for player_num in range(NUMBER_PLAYERS):
+            pattern_lines = self.game_viewer.get_player_pattern_lines(player_num)
+            for i, pattern_line in enumerate(pattern_lines):
+                for j, tile_type in enumerate(pattern_line):
+                    
+                    x = 20 + (self.board_size[0])*player_num + (self.tile_size+tile_separation)*(4-j)
+                    y = 14 + (SCREEN_HEIGHT - self.board_size[1]) + (self.tile_size+tile_separation)*i
+                    tile_position = (
+                            x,
+                            y,
+                            self.tile_size,
+                            self.tile_size
+                    )
+                    if tile_type != 0:
+                        tile_color = self.tiles_colors_dict[tile_type]
+
+                        pygame.draw.rect(self.screen, tile_color, tile_position)
+        
+        tile_separation = 8
+        for player_num in range(NUMBER_PLAYERS):
+            floor_tiles = self.game_viewer.get_player_floor_lines(player_num)
+            print(floor_tiles)
+            for i in range(len(floor_tiles)):
+                x = 18 + (self.board_size[0])*player_num + (self.tile_size+tile_separation)*i
+                y = 220 + (SCREEN_HEIGHT - self.board_size[1]) + (self.tile_size+tile_separation)
+                tile_position = (
+                        x,
+                        y,
+                        self.tile_size,
+                        self.tile_size
+                )
+                tile_type = floor_tiles[i]
+                if tile_type != 0:
+                    tile_color = self.tiles_colors_dict[tile_type]
+                    pygame.draw.rect(self.screen, tile_color, tile_position)
+
 
     def run(self):
-        # self.game_state.next()
-        # self.game_state.next()
-        # self.game_state.next()
-        # self.game_state.next()
-        # self.game_state.next()
-        # self.game_state.next()
+        # for _ in range(47):
+        #     self.game_state.next()
+
         while self.running:
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
@@ -218,5 +284,6 @@ class Game_GUI():
             self.game_state.next()
 
             self.draw_tiles()
+            self.draw_players_tiles()
 
         pygame.quit()
