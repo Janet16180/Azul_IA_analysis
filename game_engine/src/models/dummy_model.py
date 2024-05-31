@@ -1,12 +1,11 @@
 import sys
 # sys.path.append("..")
-from ..game_logic import Player_model
+from game_engine.src.game_logic import Player_model
 import random
 from typing import Tuple, List
 from icecream import ic
 import numpy as np
 import warnings
-
 
 class Dummy_player(Player_model):
     def player_move(self) -> Tuple[int, int, int]:
@@ -25,7 +24,6 @@ class Dummy_player(Player_model):
                 valid_move = self.validate_player_move(factory_index, tile_type, row_index)
         
         result = (factory_index, tile_type, row_index)
-        ic(result)
         return (factory_index, tile_type, row_index)
     
 

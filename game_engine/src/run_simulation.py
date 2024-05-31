@@ -116,10 +116,6 @@ class Game_state_machine():
         elif self.state == Game_states.GAME_END:
             next_state = Game_states.GAME_END
 
-        ic(self.game_logic.factories)
-        ic(self.game_logic.center_tiles)
-        
-        
         exec_method = self.state_methods_dict[next_state]
         exec_method()
 
@@ -147,20 +143,19 @@ class Game_state_machine():
             print(f"{self.state}")
 
 
-def run_simulation():
+def run_simulation(players_models: List, seed: int = 1):
+    number_players = len(players_models)
 
-    game_logic = Game_logic(number_players=2)
+    game_logic = Game_logic(number_players=number_players, seed=seed)
     game_view = Game_viewer(game_logic)
-    dummy_player_1 = Dummy_player(game_view, 0)
-    dummy_player_2 = Dummy_player(game_view, 1)
 
-    players = [dummy_player_1, dummy_player_2]
+    players = []
+    for i in range(players_models):
+        players.appennd(
+            players_models[i](game_view, i)
+        )
 
     game_state = Game_state_machine(game_logic, players)
 
-    for _ in range(20000):
-        game_state.print_state()
+    while game_state.state != Game_states.GAME_END:
         game_state.next()
-        if game_state.state == Game_states.GAME_END:
-            print("GAME END")
-            break

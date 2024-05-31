@@ -9,7 +9,7 @@ from enum import Enum, auto
 from itertools import cycle
 # from .model_abstract_class import Player_model
 from icecream import ic
-
+from collections import Counter
 
 class Board():
     def __init__(self, game_logic: Game_logic):
@@ -345,20 +345,23 @@ class Game_logic():
         reach the end game condition
 
     """
-    def __init__(self, number_players: int = 4):
+    def __init__(self, number_players: int = 4, seed: int = 1):
         """ 
-
         Parameters
         ----------
         number_players : int, optional
             Number of players, from 2 to 4, by default 4
+        seed : int, optional
+            Set a seed for the randomization
 
         Raises
         ------
         ValueError
             The number of players should be between 2 and 4
         """
-        random.seed(1)
+
+        random.seed(seed)
+        np.random.seed(seed)
 
         if number_players < 1 or number_players > 4:
             raise ValueError("The number of players should be between 2 and 4")
@@ -487,7 +490,10 @@ class Game_logic():
             self.bag_tiles = self.bag_tiles[self.factories_num*4:]
 
             for expositor_num in range(self.factories_num):
-                self.factories[expositor_num] = tiles[expositor_num:expositor_num+4]
+                from_val = expositor_num*4
+                to_val = from_val + 4
+                self.factories[expositor_num] = tiles[from_val:to_val]
+
 
         else:
             full_tiles_num = len(self.bag_tiles)//4
@@ -496,7 +502,9 @@ class Game_logic():
             self.bag_tiles = self.bag_tiles[full_tiles_num*4:]
 
             for expositor_num in range(full_tiles_num):
-                self.factories[expositor_num] = tiles[expositor_num:expositor_num+4]
+                from_val = expositor_num*4
+                to_val = from_val + 4
+                self.factories[expositor_num] = tiles[from_val:to_val]
 
             self.factories[full_tiles_num] = self.bag_tiles[:]
 
@@ -517,7 +525,54 @@ class Game_logic():
                 self.bag_tiles = self.bag_tiles[4:]
 
                 self.factories[factory_num] = tiles
+    
+    def validate_game_logic(self):
+        players_walls = []
+        players_line_patterns = []
+        players_floors = []
+        for player in self.players_boards:
+            players_walls.append(player.wall)
+            players_line_patterns.append(player.pattern_lines)
+            players_floors.append(player.floor_line)
 
+        players_walls = players_walls.copy()
+        players_line_patterns = players_line_patterns.copy()
+        players_floors = players_floors.copy()
+
+        center_tiles = self.center_tiles.copy()
+        bag_tiles = self.bag_tiles.copy()
+        discarted_tiles = self.discarted_tiles.copy()
+        factories_tiles = self.factories.copy()
+
+        all_tiles = center_tiles + bag_tiles + discarted_tiles
+
+        for tiles in players_walls:
+            all_tiles += list(tiles[tiles != 0])
+
+        for player_line_patterns in players_line_patterns:
+            for tiles in player_line_patterns:
+                all_tiles += list(tiles[tiles != 0])
+
+        for tiles in players_floors:
+            all_tiles += list(tiles[tiles != 0])
+
+        for tiles in factories_tiles:
+            all_tiles += tiles
+
+        if len(all_tiles) != 100:
+            raise RuntimeError(f"The total number of tiles is not 100, number of tiles: {len(all_tiles)}")
+        
+        count_dict = Counter(all_tiles)
+        ic(count_dict)
+        print()
+        all_tiles = np.array(all_tiles)
+
+        for i in range(1,6):
+            tiles_by_type = all_tiles[all_tiles == i]
+            if len(tiles_by_type) != 20:
+                raise RuntimeError(f"The number of tiles of type {i} is not equal to 20, total: {len(tiles_by_type)}")
+
+    
 class Game_viewer():
     def __init__(self, game_logic: Game_logic):
         self.game_logic = game_logic
@@ -528,10 +583,10 @@ class Game_viewer():
         self.__players_boards = game_logic.players_boards
 
     def get_factories(self):
-        return self.__factories
+        return self.__factories.copy()
     
     def get_center_tiles(self):
-        return self.__center_tiles
+        return self.__center_tiles.copy()                                               
     
     def get_number_of_players(self):
         return self.game_logic.number_players
@@ -550,6 +605,14 @@ class Game_viewer():
         player = self.__players_boards[player_index]
         player_pattern_lines = player.pattern_lines
         return player_pattern_lines.copy()
+    
+    def get_bag_tiles(self):
+        bag_tiles = self.game_logic.bag_tiles
+        return bag_tiles.copy()
+    
+    def get_discarted_tiles(self):
+        discarted_tiles = self.game_logic.discarted_tiles
+        return discarted_tiles.copy()
     
     def validate_player_move(self, player_index: int, factory_index: int, tile_type: int, row_index: int) -> bool:
         player = self.__players_boards[player_index]
